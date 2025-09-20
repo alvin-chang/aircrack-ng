@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# airmon-ng.darwin - macOS specific airmon-ng implementation
+# This is a simplified version for macOS that focuses on what's actually possible
+
+# Check if running as root
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        echo "This script requires root privileges. Please run with sudo."
+        exit 1
+    fi
+}
+
+# List available wireless interfaces
+list_interfaces() {
+    echo "Available wireless interfaces:"
+    networksetup -listallhardwareports | grep -A 1 "Wi-Fi\|AirPort" | grep "Device" | awk '{print $2}'
+}
+
+# Put interface in monitor mode (not fully supported on macOS)
+start_monitor() {
+    interface=$1
+    if [ -z "$interface" ]; then
+        echo "Usage: airmon-ng start <interface>"
+        list_interfaces
+        exit 1
+    fi
+    
+    echo "Attempting to start monitor mode on $interface"
+    echo "Note: True monitor mode is not available on macOS through public APIs"
+    echo "Using promiscuous mode through libpcap instead"
+    
+    # Check if interface exists
+    if ! ifconfig $interface &> /dev/null; then
+        echo "Interface $interface not found"
+        list_interfaces
+        exit 1
+    fi
+    
+    # Bring interface up
+    ifconfig $interface up
+    
+    # That's about as much as we can do on macOS
+    echo "Interface $interface is now up. Use airodump-ng for packet capture."
+}
+
+# Stop monitor mode (not applicable on macOS)
+stop_monitor() {
+    interface=$1
+    if [ -z "$interface" ]; then
+        echo "Usage: airmon-ng stop <interface>"
+        list_interfaces
+        exit 1
+    fi
+    
+    echo "Stopping monitor mode on $interface"
+    echo "Note: No special action needed on macOS"
+}
+
+# Main function
+main() {
+    check_root
+    
+    case "$1" in
+        start)
+            start_monitor $2
+            ;;
+        stop)
+            stop_monitor $2
+            ;;
+        check)
+            echo "Checking wireless interfaces..."
+            list_interfaces
+            ;;
+        *)
+            echo "Usage: airmon-ng {start|stop|check} [interface]"
+            echo ""
+            echo "Commands:"
+            echo "  start <interface>  Start monitor mode on interface"
+            echo "  stop <interface>   Stop monitor mode on interface"
+            echo "  check              List available wireless interfaces"
+            echo ""
+            list_interfaces
+            ;;
+    esac
+}
+
+# Run main function
+main "$@"

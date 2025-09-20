@@ -116,6 +116,23 @@ case "$host_os" in
                 ])
                 ;;
         esac
+        
+        dnl Check for CoreWLAN framework
+        AC_MSG_CHECKING([for CoreWLAN framework])
+        AC_COMPILE_IFELSE([
+            AC_LANG_PROGRAM([
+                #include <CoreWLAN/CoreWLAN.h>
+            ], [
+                CWInterface* iface = NULL;
+            ])
+        ], [
+            AC_DEFINE([HAVE_COREWLAN], [1], [Define if CoreWLAN framework is available])
+            COREWLAN_LIBS="-framework CoreWLAN -framework Foundation"
+            AC_SUBST([COREWLAN_LIBS])
+            AC_MSG_RESULT([yes])
+        ], [
+            AC_MSG_RESULT([no])
+        ])
         ;;
 esac
 ])

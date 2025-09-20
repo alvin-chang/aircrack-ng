@@ -1,0 +1,73 @@
+From 1234567890abcdef1234567890abcdef12345678 Mon Sep 17 00:00:00 2001
+From: Alvin Chang <1977968+alvin-chang@users.noreply.github.com>
+Date: Fri, 19 Sep 2025 10:00:00 -0400
+Subject: [PATCH] Fix mutex initialization order on macOS
+
+This fixes a crash on macOS where pthread_mutex_lock would fail with
+"Assertion `mutex->m_owner == 0' failed" due to mutexes being
+initialized and then zeroed out by memset calls.
+
+The fix moves mutex initialization to occur after the memset calls
+that zero out the lopt structure, ensuring the mutexes are properly
+initialized.
+
+Also improves error handling in input_thread to use proper ALLEGE
+macros instead of custom error handling.
+
+Fixes issue #XXXX
+---
+ src/airodump-ng/airodump-ng.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/src/airodump-ng/airodump-ng.c b/src/airodump-ng/airodump-ng.c
+index 1234567..89abcde 100644
+--- a/src/airodump-ng/airodump-ng.c
++++ b/src/airodump-ng/airodump-ng.c
+@@ -6039,15 +6039,16 @@ int main(int argc, char * argv[])
+ 
+ 	console_utf8_enable();
+ 	ac_crypto_init();
+-
+-	ALLEGE(pthread_mutex_init(&(lopt.mx_print), NULL) == 0);
+-	ALLEGE(pthread_mutex_init(&(lopt.mx_sort), NULL) == 0);
+-
+ 	textstyle(TEXT_RESET); //(TEXT_RESET, TEXT_BLACK, TEXT_WHITE);
+ 
+ 	/* initialize a bunch of variables */
+ 
+ 	rand_init();
+ 	memset(&opt, 0, sizeof(opt));
+ 	memset(&lopt, 0, sizeof(lopt));
+ 
++	// Initialize mutexes AFTER zeroing out lopt structure
++	ALLEGE(pthread_mutex_init(&(lopt.mx_print), NULL) == 0);
++	ALLEGE(pthread_mutex_init(&(lopt.mx_sort), NULL) == 0);
++
+ 	h80211 = NULL;
+ 	ivs_only = 0;
+ 	lopt.chanoption = 0;
+@@ -794,15 +794,14 @@ static THREAD_ENTRY(input_thread)
+ 		if (lopt.do_exit == 0 && !lopt.do_pause)
+ 		{
+-			// On macOS, pthread_mutex_lock may fail if the mutex is not properly initialized
+-			// We'll skip the lock/unlock if it fails, but continue processing
+-			int lock_result = pthread_mutex_lock(&(lopt.mx_print));
+-			if (lock_result != 0) {
+-				fprintf(stderr, "Warning: pthread_mutex_lock failed with error %d\n", lock_result);
+-				// Continue without lock on macOS
+-			}
++			// Use proper error-checking with ALLEGE macro
++			ALLEGE(pthread_mutex_lock(&(lopt.mx_print)) == 0);
+ 
+ 			dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
+ 
+-			int unlock_result = pthread_mutex_unlock(&(lopt.mx_print));
+-			if (unlock_result != 0) {
+-				fprintf(stderr, "Warning: pthread_mutex_unlock failed with error %d\n", unlock_result);
+-				// Continue without unlock on macOS
+-			}
++			ALLEGE(pthread_mutex_unlock(&(lopt.mx_print)) == 0);
+ 		}
+ 
+-- 
+2.39.3
