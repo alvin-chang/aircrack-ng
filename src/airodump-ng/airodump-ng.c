@@ -65,6 +65,25 @@
 #include <limits.h>
 #include <inttypes.h>
 
+#ifdef __APPLE__
+static inline void SafeMutexLock(pthread_mutex_t *mutex) {
+    int result = pthread_mutex_lock(mutex);
+    if (result != 0) {
+        fprintf(stderr, "Warning: pthread_mutex_lock failed with error %d\n", result);
+    }
+}
+
+static inline void SafeMutexUnlock(pthread_mutex_t *mutex) {
+    int result = pthread_mutex_unlock(mutex);
+    if (result != 0) {
+        fprintf(stderr, "Warning: pthread_mutex_unlock failed with error %d\n", result);
+    }
+}
+#else
+#define SafeMutexLock(mutex) ALLEGE(pthread_mutex_lock(mutex) == 0)
+#define SafeMutexUnlock(mutex) ALLEGE(pthread_mutex_unlock(mutex) == 0)
+#endif
+
 #include "aircrack-ng/pcre/compat-pcre.h"
 #include "aircrack-ng/defs.h"
 #include "aircrack-ng/version.h"
@@ -545,9 +564,9 @@ static THREAD_ENTRY(input_thread)
 				default:
 					break;
 			}
-			ALLEGE(pthread_mutex_lock(&(lopt.mx_sort)) == 0);
+			SafeMutexLock(&(lopt.mx_sort));
 			dump_sort();
-			ALLEGE(pthread_mutex_unlock(&(lopt.mx_sort)) == 0);
+			SafeMutexUnlock(&(lopt.mx_sort));
 		}
 
 		if (keycode == KEY_SPACE)
@@ -557,11 +576,11 @@ static THREAD_ENTRY(input_thread)
 			{
 				snprintf(
 					lopt.message, sizeof(lopt.message), "][ paused output");
-				ALLEGE(pthread_mutex_lock(&(lopt.mx_print)) == 0);
+				SafeMutexLock(&(lopt.mx_print));
 
 				dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
 
-				ALLEGE(pthread_mutex_unlock(&(lopt.mx_print)) == 0);
+				SafeMutexUnlock(&(lopt.mx_print));
 			}
 			else
 				snprintf(
@@ -684,11 +703,11 @@ static THREAD_ENTRY(input_thread)
 
 		if (lopt.do_exit == 0 && !lopt.do_pause)
 		{
-			ALLEGE(pthread_mutex_lock(&(lopt.mx_print)) == 0);
+			SafeMutexLock(&(lopt.mx_print));
 
 			dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
 
-			ALLEGE(pthread_mutex_unlock(&(lopt.mx_print)) == 0);
+			SafeMutexUnlock(&(lopt.mx_print));
 		}
 	}
 
@@ -3599,9 +3618,9 @@ static void dump_print(int ws_row, int ws_col, int if_num)
 
 	if (lopt.do_sort_always)
 	{
-		ALLEGE(pthread_mutex_lock(&(lopt.mx_sort)) == 0);
+		SafeMutexLock(&(lopt.mx_sort));
 		dump_sort();
-		ALLEGE(pthread_mutex_unlock(&(lopt.mx_sort)) == 0);
+		SafeMutexUnlock(&(lopt.mx_sort));
 	}
 
 	tt = time(NULL);
@@ -6029,8 +6048,6 @@ int main(int argc, char * argv[])
 	console_utf8_enable();
 	ac_crypto_init();
 
-	ALLEGE(pthread_mutex_init(&(lopt.mx_print), NULL) == 0);
-	ALLEGE(pthread_mutex_init(&(lopt.mx_sort), NULL) == 0);
 
 	textstyle(TEXT_RESET); //(TEXT_RESET, TEXT_BLACK, TEXT_WHITE);
 
@@ -6039,6 +6056,9 @@ int main(int argc, char * argv[])
 	rand_init();
 	memset(&opt, 0, sizeof(opt));
 	memset(&lopt, 0, sizeof(lopt));
+	// Initialize mutexes AFTER zeroing out lopt structure
+	ALLEGE(pthread_mutex_init(&(lopt.mx_print), NULL) == 0);
+	ALLEGE(pthread_mutex_init(&(lopt.mx_sort), NULL) == 0);
 
 	h80211 = NULL;
 	ivs_only = 0;
@@ -7129,9 +7149,9 @@ int main(int argc, char * argv[])
 			if (lopt.sort_by != SORT_BY_NOTHING)
 			{
 				/* sort the APs by power */
-				ALLEGE(pthread_mutex_lock(&(lopt.mx_sort)) == 0);
+				SafeMutexLock(&(lopt.mx_sort));
 				dump_sort();
-				ALLEGE(pthread_mutex_unlock(&(lopt.mx_sort)) == 0);
+				SafeMutexUnlock(&(lopt.mx_sort));
 			}
 
 			/* update the battery state */
@@ -7436,11 +7456,11 @@ int main(int argc, char * argv[])
 
 			if (!lopt.do_pause && !lopt.background_mode)
 			{
-				ALLEGE(pthread_mutex_lock(&(lopt.mx_print)) == 0);
+				SafeMutexLock(&(lopt.mx_print));
 
 				dump_print(lopt.ws.ws_row, lopt.ws.ws_col, lopt.num_cards);
 
-				ALLEGE(pthread_mutex_unlock(&(lopt.mx_print)) == 0);
+				SafeMutexUnlock(&(lopt.mx_print));
 			}
 			continue;
 		}

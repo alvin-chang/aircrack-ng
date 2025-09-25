@@ -64,6 +64,8 @@ endif
 
 if DARWIN
 libaircrack_osdep_la_SOURCES = $(SRCS_DARWIN)
+libaircrack_osdep_la_LIBADD = $(LIBRADIOTAP_LIBS) $(PCAP_LIBS) $(COREWLAN_LIBS)
+libaircrack_osdep_la_CFLAGS = $(DARWIN_CFLAGS)
 endif
 
 if DUMMY

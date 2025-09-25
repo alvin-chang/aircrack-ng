@@ -48,6 +48,8 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <sys/param.h>
+#include <sys/sysctl.h>
 #include <limits.h>
 #include <errno.h>
 #include <assert.h>
@@ -188,7 +190,14 @@ int is_string_number(const char * str)
 int get_ram_size(void)
 {
 	int ret = -1;
-#if defined (CTL_HW) && (defined(HW_PHYSMEM) || defined(HW_PHYSMEM64))
+#if defined(__APPLE__)
+	int mib[] = {CTL_HW, HW_MEMSIZE};
+	uint64_t physmem;
+	size_t len = sizeof(physmem);
+
+	if (!sysctl(mib, 2, &physmem, &len, NULL, 0))
+		ret = (physmem / 1024); // Return memory size in kB to match Linux behavior
+#elif defined (CTL_HW) && (defined(HW_PHYSMEM) || defined(HW_PHYSMEM64))
 #ifdef HW_PHYSMEM64
 	int mib[] = {CTL_HW, HW_PHYSMEM64};
 	uint64_t physmem;
